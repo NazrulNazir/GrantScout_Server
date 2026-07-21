@@ -5,22 +5,53 @@ import { generateAIResponse } from "../services/aiService";
 
 export const getAIChatResponse = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { message, projectId } = req.body;
+    const { message, projectId, grantId, history } = req.body;
     
     let contextStr = "";
     if (projectId) {
       const project = await Project.findOne({ _id: projectId, user: (req as any).user._id });
       if (project) {
-        contextStr = `Project Name: ${project.name}\nProject Description: ${project.description}\nProject Tags: ${project.tags?.join(", ") || ""}\n`;
+        contextStr += `Active Project Context:\n- Name: ${project.name}\n- Description: ${project.description}\n- Tags: ${project.tags?.join(", ") || ""}\n\n`;
+      }
+    }
+
+    if (grantId) {
+      const grant = await Grant.findById(grantId);
+      if (grant) {
+        contextStr += `Active Grant Context Opportunity:\n- Title: ${grant.title}\n- Organization: ${grant.organization}\n- Description: ${grant.description}\n- Amount: $${grant.amount.toLocaleString()}\n- Deadline: ${grant.deadline}\n- Specifications: ${grant.specifications?.map(s => `${s.label}: ${s.value}`).join("; ") || "None"}\n\n`;
       }
     }
 
     const systemInstruction = `You are GrantScout AI, an expert AI grant consultant.
-Below is the project context for the user:
-${contextStr || "No project context loaded."}
-Please answer the user's query professionally, drawing on their project context where applicable.`;
+Below is the project and/or grant context loaded for the user's conversation:
+${contextStr || "No specific project or grant context is currently loaded."}
 
-    const reply = await generateAIResponse(message, systemInstruction);
+Please answer the user's queries professionally and naturally based on the loaded context, previous chat history, and current conversation. Avoid returning generic helper messages or placeholders. If the user asks for eligibility checks, alignment reviews, drafting sections, or advice, draw on the provided contexts where applicable.`;
+
+    // Map history to Gemini API structure (role must be "user" or "model")
+    let contents: any[] = [];
+    if (Array.isArray(history) && history.length > 0) {
+      // Map previous messages
+      contents = history.map((msg: any) => ({
+        role: msg.role === "assistant" ? "model" : "user",
+        parts: [{ text: msg.content }]
+      }));
+      // Append the latest user query
+      contents.push({
+        role: "user",
+        parts: [{ text: message }]
+      });
+    } else {
+      // Single turn fallback
+      contents = [
+        {
+          role: "user",
+          parts: [{ text: message }]
+        }
+      ];
+    }
+
+    const reply = await generateAIResponse(contents, systemInstruction);
     res.json({ reply });
   } catch (error) {
     next(error);

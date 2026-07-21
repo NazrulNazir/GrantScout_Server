@@ -1,29 +1,45 @@
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+const modelName = "gemini-3.1-flash-lite";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
-export const generateAIResponse = async (prompt: string, systemInstruction?: string): Promise<string> => {
+export const generateAIResponse = async (
+  promptOrContents: string | any[],
+  systemInstruction?: string
+): Promise<string> => {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.startsWith("AQ.Ab8RN6") || apiKey === "mock") {
+  if (!apiKey || apiKey === "mock") {
     console.log("Using Mock AI fallback response (Invalid or Mock Gemini API Key)");
+    const prompt = typeof promptOrContents === "string" 
+      ? promptOrContents 
+      : (promptOrContents[promptOrContents.length - 1]?.parts?.[0]?.text || "");
     return getMockFallbackResponse(prompt);
   }
 
   try {
+    let contents: any[] = [];
+    if (typeof promptOrContents === "string") {
+      contents = [
+        {
+          role: "user",
+          parts: [{ text: promptOrContents }]
+        }
+      ];
+    } else {
+      contents = promptOrContents;
+    }
+
+    const payload: any = { contents };
+    if (systemInstruction) {
+      payload.systemInstruction = {
+        parts: [{ text: systemInstruction }]
+      };
+    }
+
     const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `${systemInstruction ? systemInstruction + "\n\n" : ""}User prompt: ${prompt}`
-              }
-            ]
-          }
-        ]
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -38,6 +54,9 @@ export const generateAIResponse = async (prompt: string, systemInstruction?: str
     return reply;
   } catch (error: any) {
     console.error("Gemini API call failed:", error.message);
+    const prompt = typeof promptOrContents === "string" 
+      ? promptOrContents 
+      : (promptOrContents[promptOrContents.length - 1]?.parts?.[0]?.text || "");
     return getMockFallbackResponse(prompt);
   }
 };
