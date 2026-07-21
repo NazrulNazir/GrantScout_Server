@@ -16,7 +16,16 @@ dotenv.config();
 connectDB(); // Connect to MongoDB
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Vercel/reverse proxy) for correct req.ip
 const PORT = process.env.PORT || 5000;
+
+// CORS & Body Parsing (must be before rate limiter and sanitize)
+app.use(cors({
+  origin: process.env.CLIENT_URL,
+  credentials: true
+}));
+app.use(express.json());
+app.use(cookieParser());
 
 // Security Middlewares
 app.use(helmet());
@@ -30,16 +39,10 @@ app.use((req, res, next) => {
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
-  message: 'Too many requests from this IP, please try again after 15 minutes'
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+  validate: { trustProxy: false }, // We handle trust proxy ourselves via app.set()
 });
 app.use('/api', limiter);
-
-app.use(cors({
-  origin: process.env.CLIENT_URL,
-  credentials: true
-}));
-app.use(express.json());
-app.use(cookieParser());
 
 // Routes
 app.get('/api/v1/health', (req, res) => {

@@ -1,6 +1,15 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction, CookieOptions } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User";
+
+const isProduction = process.env.NODE_ENV === "production";
+
+const cookieOptions: CookieOptions = {
+  httpOnly: true,
+  secure: isProduction,                       // HTTPS only in production (Vercel is always HTTPS)
+  sameSite: isProduction ? "none" : "lax",    // "none" for cross-site in prod, "lax" for localhost dev
+  maxAge: 30 * 24 * 60 * 60 * 1000,          // 30 days
+};
 
 const generateToken = (id: string) => {
   return jwt.sign({ id }, process.env.JWT_SECRET as string, { expiresIn: "30d" });
@@ -20,7 +29,7 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
     
     if (user) {
       const token = generateToken(user._id.toString());
-      res.cookie("jwt", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 30 * 24 * 60 * 60 * 1000 });
+      res.cookie("jwt", token, cookieOptions);
       res.status(201).json({ _id: user._id, name: user.name, email: user.email, role: user.role });
     } else {
       res.status(400);
@@ -38,7 +47,7 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
 
     if (user && (await user.matchPassword(password))) {
       const token = generateToken(user._id.toString());
-      res.cookie("jwt", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 30 * 24 * 60 * 60 * 1000 });
+      res.cookie("jwt", token, cookieOptions);
       res.json({ _id: user._id, name: user.name, email: user.email, role: user.role });
     } else {
       res.status(401);
@@ -50,7 +59,7 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
 };
 
 export const logoutUser = (req: Request, res: Response) => {
-  res.cookie("jwt", "", { httpOnly: true, expires: new Date(0), sameSite: "lax" });
+  res.cookie("jwt", "", { ...cookieOptions, maxAge: 0 });
   res.json({ message: "Logged out successfully" });
 };
 
@@ -102,9 +111,10 @@ export const googleLogin = async (req: Request, res: Response, next: NextFunctio
     }
 
     const token = generateToken(user._id.toString());
-    res.cookie("jwt", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 30 * 24 * 60 * 60 * 1000 });
+    res.cookie("jwt", token, cookieOptions);
     res.status(200).json({ _id: user._id, name: user.name, email: user.email, role: user.role });
   } catch (error) {
     next(error);
   }
 };
+
