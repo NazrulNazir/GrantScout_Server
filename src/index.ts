@@ -51,8 +51,13 @@ app.use('/api/v1/projects', projectRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/grants', grantRoutes);
 
+
 // Error Handling Middleware
 app.use(errorHandler as any);
+
+app.get("/", (req, res) => {
+  res.send("GrantScout Server is Running 🚀");
+});
 
 app.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
