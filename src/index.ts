@@ -58,8 +58,12 @@ app.use('/api/v1/grants', grantRoutes);
 // Error Handling Middleware
 app.use(errorHandler as any);
 
+app.get('/test', (req, res) => {
+  res.send("Server Testing mode.")
+})
+
 app.get("/", (req, res) => {
-  res.send("GrantScout Server is Running 🚀");
+  res.send("GrantScout Server is Running.. 🚀");
 });
 
 app.listen(PORT, () => {
